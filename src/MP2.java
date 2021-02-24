@@ -34,10 +34,14 @@ public class MP2 {
         System.out.println(SPACER + "Answer RRs: " + toInt(data, 6, 8));
         System.out.println(SPACER + "Authority RRs: " + toInt(data, 8, 10));
         System.out.println(SPACER + "Additional RRs: " + toInt(data, 10, 12));
-
         System.out.println(SPACER + "Queries");
-        String name = getDNSName(data, 12);
-        int nameEnd = 12 + name.length() + 2;
+        printDNSQueries(data);
+    }
+
+    private void printDNSQueries(byte[] data) {
+        int start = 12;
+        String name = getDNSName(data, start);
+        int nameEnd = start + name.length() + 2;
         String type = switch (toInt(data, nameEnd, nameEnd + 2)) {
             case 1 -> "A";
             case 2 -> "NS";
