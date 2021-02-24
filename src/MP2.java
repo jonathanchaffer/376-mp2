@@ -30,12 +30,39 @@ public class MP2 {
         byte[] data = packet.getData();
         System.out.println(SPACER + "Transaction ID: " + toHex(data, 0, 2));
         System.out.println(SPACER + "Flags: " + toHex(data, 2, 4));
+        printDNSFlags(data);
         System.out.println(SPACER + "Questions: " + toInt(data, 4, 6));
         System.out.println(SPACER + "Answer RRs: " + toInt(data, 6, 8));
         System.out.println(SPACER + "Authority RRs: " + toInt(data, 8, 10));
         System.out.println(SPACER + "Additional RRs: " + toInt(data, 10, 12));
         System.out.println(SPACER + "Queries");
         printDNSQueries(data);
+    }
+
+    private void printDNSFlags(byte[] data) {
+        int response = getBit(data[2], 7);
+        System.out.println(SPACER + SPACER + response + "... .... .... .... = Response: Message is a " + (response == 0 ? "query" : "response"));
+
+        int opcode0 = getBit(data[2], 6);
+        int opcode1 = getBit(data[2], 5);
+        int opcode2 = getBit(data[2], 4);
+        int opcode3 = getBit(data[2], 3);
+        System.out.println(SPACER + SPACER + "." + opcode0 + opcode1 + opcode2 + " " + opcode3 + "... .... .... = Opcode: Standard query (0)");
+
+        int authority = getBit(data[2], 2);
+        System.out.println(SPACER + SPACER + ".... ." + authority + ".. .... .... = Authority: Server is " + (authority == 0 ? "not " : "") + "an authority for domain");
+
+        int truncated = getBit(data[2], 1);
+        System.out.println(SPACER + SPACER + ".... .." + truncated + ". .... .... = Truncated: Message is " + (truncated == 0 ? "not " : "") + "truncated");
+
+        int recursive = getBit(data[2], 0);
+        System.out.println(SPACER + SPACER + ".... ..." + recursive + " .... .... = Recursion desired: Do " + (recursive == 0 ? "not do " : "") + "query recursively");
+
+        int reserved = getBit(data[3], 6);
+        System.out.println(SPACER + SPACER + ".... .... ." + reserved + ".. .... = Z: reserved (0)");
+
+        int unauthenticated = getBit(data[3], 4);
+        System.out.println(SPACER + SPACER + ".... .... ..." + unauthenticated + " .... = Non-authenticated data: " + (unauthenticated == 0 ? "Unacceptable" : "Acceptable"));
     }
 
     private void printDNSQueries(byte[] data) {
