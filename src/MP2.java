@@ -3,10 +3,11 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 
 public class MP2 {
-    static final int PORT = 53;
+    static final int PORT = 53; // This is a DNS server - we only care about what comes in on port 53
     static final int BUFFER_SIZE = 65530;
     static final String SPACER = "    ";
     static final String MARKER = "*** ";
+    static final String UNKNOWN = "unknown";
 
     public void runServer() {
         try {
@@ -33,6 +34,20 @@ public class MP2 {
         System.out.println(SPACER + "Answer RRs: " + toInt(data, 6, 8));
         System.out.println(SPACER + "Authority RRs: " + toInt(data, 8, 10));
         System.out.println(SPACER + "Additional RRs: " + toInt(data, 10, 12));
+
+        System.out.println(SPACER + "Queries");
+        String name = getDNSName(data, 12);
+        int nameEnd = 12 + name.length() + 2;
+        String type = switch (toInt(data, nameEnd, nameEnd + 2)) {
+            case 1 -> "A";
+            case 2 -> "NS";
+            default -> UNKNOWN;
+        };
+        String qClass = UNKNOWN;
+        if (toInt(data, nameEnd + 2, nameEnd + 4) == 1) {
+            qClass = "IN";
+        }
+        System.out.println(SPACER + SPACER + getDNSName(data, 12) + ": type " + type + ", class " + qClass);
     }
 
     public void answerDNSQuery(DatagramPacket packet, DatagramSocket socket, InetAddress address) {
@@ -59,6 +74,31 @@ public class MP2 {
 
     private int getBit(byte b, int pos) {
         return (b >> pos) & 1;
+    }
+
+    public static String getDNSName(byte bytes[], int start) {
+        int pos = start;
+        StringBuilder name = new StringBuilder();
+        while (bytes[pos] != 0) {
+            if (pos != start) name.append(".");
+            int length = bytes[pos];
+
+            // POINTER!  We recursively print from a different place in the packet
+            if (length == -64) {
+                int pos2 = bytes[pos + 1] & 0xFF;
+                name.append(getDNSName(bytes, pos2));
+                break;
+
+                // Otherwise the "length" is the number of characters in this part of
+                // name.
+            } else {
+                for (int i = 1; i <= length; i++) {
+                    name.append((char) bytes[pos + i]);
+                }
+                pos += length + 1;
+            }
+        }
+        return name.toString();
     }
 
     public static void main(String[] args) {
