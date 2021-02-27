@@ -1,13 +1,15 @@
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 
 public class MP2 {
     static final int PORT = 53; // This is a DNS server - we only care about what comes in on port 53
-    static final int BUFFER_SIZE = 65530;
+    static final int BUFFER_SIZE = 64;
     static final String SPACER = "    ";
     static final String MARKER = "*** ";
     static final String UNKNOWN = "unknown";
+    static final int NAME_START = 12;
 
     public void runServer() {
         try {
@@ -19,7 +21,9 @@ public class MP2 {
                 socket.receive(packet);
                 System.out.println(MARKER + "Packet received from " + packet.getAddress().getHostAddress());
                 printDNSPacket(packet);
-                answerDNSQuery(packet, socket, packet.getAddress());
+                System.out.println(MARKER + "Answering query...");
+                answerDNSQuery(packet, socket);
+                System.out.println(MARKER + "Answer sent.");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -66,9 +70,8 @@ public class MP2 {
     }
 
     private void printDNSQueries(byte[] data) {
-        int start = 12;
-        String name = getDNSName(data, start);
-        int nameEnd = start + name.length() + 2;
+        String name = getDNSName(data, NAME_START);
+        int nameEnd = NAME_START + name.length() + 2;
         String type = switch (toInt(data, nameEnd, nameEnd + 2)) {
             case 1 -> "A";
             case 2 -> "NS";
@@ -78,11 +81,40 @@ public class MP2 {
         if (toInt(data, nameEnd + 2, nameEnd + 4) == 1) {
             qClass = "IN";
         }
-        System.out.println(SPACER + SPACER + getDNSName(data, 12) + ": type " + type + ", class " + qClass);
+        System.out.println(SPACER + SPACER + name + ": type " + type + ", class " + qClass);
     }
 
-    public void answerDNSQuery(DatagramPacket packet, DatagramSocket socket, InetAddress address) {
+    public void answerDNSQuery(DatagramPacket packet, DatagramSocket socket) throws IOException {
+        byte[] queryData = packet.getData();
+        byte[] responseData = new byte[BUFFER_SIZE];
+        String dnsName = getDNSName(queryData, NAME_START);
 
+        System.arraycopy(queryData, 0, responseData, 0, BUFFER_SIZE);
+        // Set flags
+        responseData[2] = (byte) 0x81;
+        responseData[3] = (byte) 0x80;
+        // Set # of answer RRs
+        responseData[7] = (byte) 0x01;
+        // Copy queries
+        System.arraycopy(queryData, NAME_START, responseData, NAME_START, dnsName.length() + 1);
+        // Set answer params
+        int answerStart = NAME_START + dnsName.length() + 6;
+        responseData[answerStart] = (byte) 0xc0;
+        responseData[answerStart + 1] = (byte) 0x0c;
+        responseData[answerStart + 2] = (byte) 0x00;
+        responseData[answerStart + 3] = (byte) 0x01;
+        responseData[answerStart + 4] = (byte) 0x00;
+        responseData[answerStart + 5] = (byte) 0x01;
+        responseData[answerStart + 7] = (byte) 0x00;
+        responseData[answerStart + 8] = (byte) 0x00;
+        responseData[answerStart + 9] = (byte) 0xb4;
+        responseData[answerStart + 10] = (byte) 0x00;
+        responseData[answerStart + 11] = (byte) 0x04;
+        // Set answer IP address
+        InetAddress resolution = InetAddress.getByName(dnsName);
+        System.arraycopy(resolution.getAddress(), 0, responseData, answerStart + 12, 4);
+        // Send packet
+        socket.send(new DatagramPacket(responseData, BUFFER_SIZE, packet.getAddress(), packet.getPort()));
     }
 
     private String toHex(byte[] arr, int start, int end) {
